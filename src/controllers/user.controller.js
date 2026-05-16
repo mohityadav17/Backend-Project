@@ -4,6 +4,17 @@ import{User} from "../models/user.models.js"
 import{uploadOnCloudinary} from "../utils/cloudinary.js"
 import { ApiResponse } from "../utils/apiResponse.js";
 
+const generateAccessAndRefreshTokens = async(UserId)=>{
+       const user = await User.findById(UserId)
+       const accessToken=user.generateAccessToken()
+       const refreshToken=user.generateRefreshToken()
+       
+       user.refreshToken = refreshToken
+       await user.save({validateBeforeSave:false})
+
+       return {accessToken,refreshToken}
+}
+
 const registerUser = asynchandler(async(req,res)=>{
     //get user details from frontend
     //validation - non empty
@@ -67,4 +78,59 @@ const registerUser = asynchandler(async(req,res)=>{
     
 })
 
+const loginUser = asynchandler(async(req,res)=>{
+    //req body -> data
+    //username or email
+    //find the user
+    //password check
+    //access and refresh token
+    //send cookie
+
+    const {email,password,username} = req.body
+    if (!username|| !email) {
+        throw new ApiError(400,"Username is required")
+    }
+    const user = await User.findOne({
+        $or:[{username},{email}]
+    })
+    if(!user){
+        throw new ApiError(404,"User not found")
+    }
+    const isPasswordValid=await user.isPasswordCorrect(password)
+    if(!isPasswordValid){
+        throw new ApiError(401,"Password is incorrect")
+
+    }
+    const {accessToken,refreshToken} = await 
+    generateAccessAndRefreshTokens(user._id)
+
+    const loggedInUser = await User.findById(user._id).
+    select("-password -redreshToken")
+
+    //cookies
+    const options = {
+        httpOnly: true,
+        secure: true
+    }
+    return res
+    .status(200)
+    .cookie("accessToken",accessToken,options)
+    .cookie("refreshToken",refreshToken.options)
+    .json(
+        new ApiResponse(200,
+            {
+                user: loggedInUser,accessToken,
+                refreshToken
+            },
+            "User Logged In Successfully"
+        )
+    )
+
+})
+
+const logoutUser = asynchandler(async(req,res)=>{
+    
+})
+
 export {registerUser}
+export {loginUser}
